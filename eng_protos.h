@@ -55,11 +55,13 @@ void qsf_memory_write(uint16 addr, uint8 byte);
 void qsf_memory_writeport(uint16 addr, uint8 byte);
 
 int32 dsf_start(uint8 *, uint32 length);
+int32 am2snd_start(uint8 *, uint32 length);
 int32 dsf_sample(stereo_sample_t *);
 int32 dsf_frame(void);
 int32 dsf_stop(void);
 int32 dsf_command(int32, int32);
 int32 dsf_fill_info(ao_display_info *);
+int32 am2snd_fill_info(ao_display_info *);
 
 void dc_debug(void);
 

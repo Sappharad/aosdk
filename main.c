@@ -41,6 +41,7 @@
 static uint32 type;
 static wavedump_t song_dump;
 volatile ao_bool ao_song_done;
+extern int SND_SUBTRACK;
 
 static struct
 {
@@ -61,6 +62,7 @@ static struct
 	{ 0x53505500, "Sony PlayStation (.spu)", spu_start, spu_sample, spu_frame, spu_stop, spu_command, 60, spu_fill_info },
 	{ 0x50534602, "Sony PlayStation 2 (.psf2)", psf2_start, psf2_sample, psf2_frame, psf2_stop, psf2_command, 60, psf2_fill_info },
 	{ 0x50534612, "Sega Dreamcast (.dsf)", dsf_start, dsf_sample, dsf_frame, dsf_stop, dsf_command, 60, dsf_fill_info },
+	{ 0x4454504B, "AM2 DTPK (.snd)", am2snd_start, dsf_sample, dsf_frame, dsf_stop, dsf_command, 60, am2snd_fill_info },
 
 	{ 0xffffffff, "", NULL, NULL, NULL, NULL, NULL, 0, NULL }
 };
@@ -183,6 +185,7 @@ int main(int argc, const char *argv[])
 #endif
 	int nosamples = false;
 	int nowave = false;
+    int subtrack = 0;
 
 	const char *const usages[] =
 	{
@@ -208,6 +211,7 @@ int main(int argc, const char *argv[])
 		#endif
 		OPT_BOOLEAN('s', "nosamples", &nosamples, "don't dump any instrument samples"),
 		OPT_BOOLEAN('w', "nowave", &nowave, "don't dump the song to a .wav file"),
+        OPT_INTEGER('t', "subtrack", &subtrack, "track index for SND that have multiple"),
 		OPT_END()
 	};
 
@@ -221,6 +225,7 @@ int main(int argc, const char *argv[])
 	);
 
 	argc = argparse_parse(&argparse, argc, argv);
+    SND_SUBTRACK = subtrack;
 
 #ifndef NOPLAY
 	if (list_devices)
