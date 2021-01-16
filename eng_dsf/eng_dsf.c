@@ -29,6 +29,10 @@
 
 static corlett_t	c = {0};
 int SND_SUBTRACK = 0;
+void unfuck(uint8 *buffer, uint32 length);
+uint32 ReadUint(uint8 *buffer, uint32 offset);
+uint16 ReadUShort(uint8 *buffer, uint32 offset);
+void WriteUint(uint8 *buffer, uint32 offset, uint32 value);
 
 int dsf_lib(int libnum, uint8 *lib, uint64 size, corlett_t *c)
 {
@@ -90,6 +94,7 @@ int32 am2snd_start(uint8 *buffer, uint32 length)
         fread(dc_ram, driverLen, 1, drvFile);
         fclose(drvFile);
         
+        unfuck(buffer, length);
         //Copy SND file into memory
         memcpy(dc_ram+0x10000, buffer, length);
         
@@ -139,16 +144,75 @@ int32 am2snd_start(uint8 *buffer, uint32 length)
     arm7_reset();
     #endif
     dc_hw_init();
-
-    /*{
-        FILE *f;
-
-        f = ao_fopen("dcram.bin", "wb");
-        fwrite(dc_ram, 2*1024*1024, 1, f);
-        fclose(f);
-    }*/
     
     return AO_SUCCESS;
+}
+
+void unfuck(uint8 *buffer, uint32 length){
+    //For the PC port of Shenmue I & II, d3t decompressed all of the ADPCM
+    //samples in the file without changing the compression and frequency
+    //flags to denote the change. They also converted them to 32-bit PCM.
+    //This converts the file back into a Dreamcast compatible format.
+    uint32 sampleTable = ReadUint(buffer, 0x3C);
+    uint32 sampleCount = ReadUint(buffer, sampleTable) + 1;
+    for (uint32 i = 0; i < sampleCount; i++)
+    {
+        uint32 sampleEntryStart = sampleTable + 4 + (i * 0x10);
+        uint32 info = ReadUint(buffer, sampleEntryStart);
+        bool compressed = ((info & 0x1000000) == 0x1000000);
+        uint16 loopEnd = ReadUShort(buffer, sampleEntryStart + 6);
+        uint32 sampleSize = ReadUint(buffer, sampleEntryStart + 12);
+        if ((sampleSize >> 1) > loopEnd)
+        {
+            //Size >> 1 is the total sample count on DC
+            //LoopEnd is always <= Sample count. If LoopEnd is > Sample count,
+            //we probably have 32 bit samples meaning we are the PC version
+            uint32 location = info & 0x7FFFFF;
+            uint16 loopStart = ReadUShort(buffer, sampleEntryStart + 4);
+            info = info & ~0x1000000; //Clear compression flag
+            info = info | 0x2800000; //Set Frequency flags
+            WriteUint(buffer, sampleEntryStart, info);
+            
+            //Cut sample size in half:
+            WriteUint(buffer, sampleEntryStart + 12, sampleSize >> 1);
+            for(uint32 j = 0; j < sampleSize >> 2; j++){
+                //Convert 32-bit samples to 16-bit by shifting them.
+                buffer[location + (j * 2)] = buffer[location + (j * 4)+1];
+                buffer[location + (j * 2)+1] = buffer[location + (j * 4)+3];
+            }
+        }
+    }
+}
+
+uint32 ReadUint(uint8 *buffer, uint32 offset)
+{
+    uint32 retval = 0;
+    for (int i = 3; i >= 0; i--)
+    {
+        retval <<= 8;
+        retval += buffer[i + offset];
+    }
+    return retval;
+}
+
+uint16 ReadUShort(uint8 *buffer, uint32 offset)
+{
+    uint16 retval = 0;
+    for (int i = 1; i >= 0; i--)
+    {
+        retval <<= 8;
+        retval += buffer[i + offset];
+    }
+    return retval;
+}
+
+void WriteUint(uint8 *buffer, uint32 offset, uint32 value)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        buffer[offset + i] = (value & 0xFF);
+        value >>= 8;
+    }
 }
 
 int32 dsf_sample(stereo_sample_t *sample)
